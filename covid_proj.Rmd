@@ -1,5 +1,5 @@
 ---
-title: "COVID Projections"
+title: "FAIR COVID-19 US County Forecasts (projections by Facebook AI)"
 runtime: shiny
 output: 
   flexdashboard::flex_dashboard:
@@ -148,6 +148,7 @@ selectInput("county",
             choices = NULL)
 ```
 
+Column
 -----------------------------------------------------------------------
 
 ### Daily Cases
@@ -156,6 +157,7 @@ selectInput("county",
 plotOutput("p1a")
 ```
 
+Column
 -----------------------------------------------------------------------
 
 ### Aggregate Cases
