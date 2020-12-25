@@ -1,0 +1,165 @@
+---
+title: "COVID Projections"
+runtime: shiny
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    social: menu
+    source_code: embed
+---
+```{r global, include = F}
+suppressWarnings(suppressPackageStartupMessages(library(tidyverse)))
+suppressWarnings(suppressPackageStartupMessages(library(colorspace)))
+options(warn = -1)
+```
+
+```{r data}
+df.real <- read_csv('https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv')
+
+tmp <- tempfile()
+df.proj <- download.file('https://data.humdata.org/dataset/29d5f1e8-062e-4d30-be0c-bc50fab2a7c1/resource/4c934a8f-123c-45e3-8191-cfa8ce5c3158/download/covid19_forecast_file_formatted_2020-12-23.zip', tmp)
+unzip(tmp, exdir = './')
+this.file <- list.files()[grep(paste('*.csv', sep = ''), list.files())]
+
+df.proj <- read_csv(this.file)
+
+states <- sort(unique(df.proj$loc2))
+
+cols <- c("#E69F00", "#56B4E9")
+```
+
+```{r covid}
+
+observeEvent(input$state, {
+  ct <- df.proj %>% 
+    filter(loc2 == input$state)
+  
+  ct <- c('All', sort(unique(ct$loc3)))
+  
+  updateSelectInput(session, 
+                    inputId = "county", 
+                    label = "County", 
+                    choices = ct)
+})
+
+pData <- reactive({
+  st <- input$state
+  ct <- input$county
+  
+  if(ct == 'All') {
+    df.r <- df.real %>%
+      filter(state == st) %>%
+      group_by(date) %>%
+      summarise(cases = sum(cases)) %>%
+      ungroup()
+    
+    df.p <- df.proj %>%
+      filter(loc2 == st) %>%
+      group_by(date) %>%
+      summarise(estimated_cases = sum(estimated_cases)) %>%
+      ungroup()
+  } else {
+    df.r <- df.real %>% 
+      filter(state == st &
+               county == ct)
+    
+    df.p <- df.proj %>%
+      filter(loc2 == st &
+               loc3 == ct)
+  }
+  
+  df.combined <- tibble(date = c(df.r$date, df.p$date), 
+                        cases = c(df.r$cases, df.p$estimated_cases), 
+                        series = c(rep('actual', length(df.r$date)), 
+                                   rep('projection', length(df.p$date))))
+  
+  
+})
+
+output$p1a <- renderPlot({
+  df.t <- pData() %>%
+    group_by(series) %>%
+    mutate(date = date,
+           cases = cases - lag(cases)) %>%
+    ungroup()
+  
+  ggplot(df.t, aes(x = date, 
+                   y = cases, 
+                   color = series,
+                   fill = series)) +
+    geom_point(size = 4.5, 
+               alpha = 0.5, 
+               shape = 21) +
+    ylab('daily cases') + 
+    scale_color_manual(
+      name = NULL,
+      values = darken(cols, 0.3)
+    ) +
+    scale_fill_manual(
+      name = NULL,
+      values = cols
+    ) +
+    theme_minimal(20) +
+    theme(
+      legend.position = "top",
+      legend.justification = "right",
+      legend.text = element_text(size = 14),
+      legend.box.spacing = unit(0, "pt")
+    )
+})
+
+output$p1b <- renderPlot({
+  ggplot(pData(), aes(x = date, 
+                      y = cases, 
+                      color = series,
+                      fill = series)) +
+    geom_point(size = 4.5, 
+               alpha = 0.5, 
+               shape = 21) +
+    ylab('aggregate cases') +
+    scale_color_manual(
+      name = NULL,
+      values = darken(cols, 0.3)
+    ) +
+    scale_fill_manual(
+      name = NULL,
+      values = cols
+    ) +
+    theme_minimal(20) +
+    theme(
+      legend.position = "top",
+      legend.justification = "right",
+      legend.text = element_text(size = 14),
+      legend.box.spacing = unit(0, "pt")
+    )
+})
+```
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+
+```{r}
+selectInput("state", 
+            label = h4("State"),
+            choices = states)
+
+selectInput("county", 
+            label = h4("County"),
+            choices = NULL)
+```
+
+-----------------------------------------------------------------------
+
+### Daily Cases
+
+```{r}
+plotOutput("p1a")
+```
+
+-----------------------------------------------------------------------
+
+### Aggregate Cases
+
+```{r}
+plotOutput("p1b")
+```
