@@ -3,6 +3,7 @@ title: "FAIR COVID-19 US County Forecasts (projections by Facebook AI)"
 runtime: shiny
 output: 
   flexdashboard::flex_dashboard:
+    theme: bootstrap
     orientation: rows
     social: menu
     source_code: embed
@@ -10,6 +11,8 @@ output:
 ```{r global, include = F}
 suppressWarnings(suppressPackageStartupMessages(library(tidyverse)))
 suppressWarnings(suppressPackageStartupMessages(library(colorspace)))
+suppressWarnings(suppressPackageStartupMessages(library(zoo)))
+suppressWarnings(suppressPackageStartupMessages(library(fpp2)))
 options(warn = -1)
 ```
 
@@ -66,19 +69,20 @@ pData <- reactive({
                loc3 == ct)
   }
   
+  df.r <- df.r %>%
+    mutate(cases = rollmean(cases, as.numeric(input$smooth), fill = NA))
+  
   df.combined <- tibble(date = c(df.r$date, df.p$date), 
                         cases = c(df.r$cases, df.p$estimated_cases), 
                         series = c(rep('actual', length(df.r$date)), 
                                    rep('projection', length(df.p$date))))
-  
   
 })
 
 output$p1a <- renderPlot({
   df.t <- pData() %>%
     group_by(series) %>%
-    mutate(date = date,
-           cases = cases - lag(cases)) %>%
+    mutate(cases = cases - lag(cases)) %>%
     ungroup()
   
   ggplot(df.t, aes(x = date, 
@@ -138,12 +142,19 @@ Column {.sidebar}
 
 ```{r}
 selectInput("state", 
-            label = h4("State"),
+            label = "State",
             choices = states)
 
 selectInput("county", 
-            label = h4("County"),
+            label = "County",
             choices = NULL)
+
+sliderInput("smooth", 
+            label = "Smoothing window (days)",
+            min = 1, 
+            max = 14, 
+            value = 1
+)
 ```
 
 Column
